@@ -1,5 +1,6 @@
 "use strict";
 
+const bh = require("./checkBusinessHours");
 const {
   checkBusinessHours,
   isWeekend,
@@ -7,7 +8,15 @@ const {
   isWithinBusinessHours,
   toLocaleDateString,
   getLocaleTime,
-} = require("./checkBusinessHours");
+  getLocaleWeekday,
+  fetchHolidays,
+} = bh;
+
+// stub network call so tests are deterministic
+jest.spyOn(bh, "fetchHolidays").mockImplementation(async (year) => {
+  // return a couple of fixed dates for all years
+  return { holidays: ["2025-12-25", "2026-01-01"], verified: true };
+});
 
 describe("isWeekend()", () => {
   test("returns true for Sunday (0)",   () => expect(isWeekend(0)).toBe(true));
@@ -39,6 +48,15 @@ describe("toLocaleDateString()", () => {
   test("returns YYYY-MM-DD format", () => {
     const result = toLocaleDateString(new Date("2025-12-30T10:00:00-03:00"));
     expect(result).toBe("2025-12-30");
+  });
+});
+
+describe("getLocaleWeekday()", () => {
+  // using Monday=1, Tuesday=2 etc. weekdays according to config timetable
+  test("returns correct weekday number for São Paulo timezone", () => {
+    const date = new Date("2025-12-30T10:00:00-03:00");
+    // 2025‑12‑30 is a Tuesday → 2
+    expect(getLocaleWeekday(date)).toBe(2);
   });
 });
 
@@ -75,6 +93,9 @@ describe("checkBusinessHours() — required scenarios", () => {
 
   test("Cenário 4 — Natal, quinta-feira 10:00 → FECHADO quando API disponível", async () => {
     const result = await checkBusinessHours(new Date("2025-12-25T10:00:00-03:00"));
+    expect(result.open).toBe(false);
+    expect(result.status).toBe("FECHADO");
+    expect(result.reason).toBe("holiday");
   });
 });
 
@@ -129,5 +150,23 @@ describe("checkBusinessHours() — edge cases", () => {
   test("holidaysVerified é boolean", async () => {
     const result = await checkBusinessHours(new Date("2025-12-30T10:00:00-03:00"));
     expect(typeof result.holidaysVerified).toBe("boolean");
+  });
+
+  test("warning is set when BrasilAPI is unreachable", async () => {
+    // make the stub return unverified result for this case
+    bh.fetchHolidays.mockResolvedValueOnce({ holidays: [], verified: false });
+    const result = await checkBusinessHours(new Date("2025-12-30T10:00:00-03:00"));
+    expect(result.holidaysVerified).toBe(false);
+    expect(result.warning).toMatch(/Não foi possível verificar/);
+  });
+
+  test("weekday with null schedule returns closed", async () => {
+    const config = require("./config");
+    const original = config.BUSINESS_HOURS[1]; // Monday
+    config.BUSINESS_HOURS[1] = null;
+    const result = await checkBusinessHours(new Date("2026-01-12T10:00:00-03:00"));
+    expect(result.open).toBe(false);
+    expect(result.reason).toBe("outside_hours");
+    config.BUSINESS_HOURS[1] = original;
   });
 });

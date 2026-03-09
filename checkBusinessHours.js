@@ -3,6 +3,9 @@
 /**
  * checkBusinessHours.js
  *
+ * Core module. Exposes a single async function that determines whether
+ * a given date/time falls within UniUn1ca's business hours.
+ *
  * Import and use it anywhere:
  *   const { checkBusinessHours } = require("./checkBusinessHours");
  *   const result = await checkBusinessHours(new Date());
@@ -11,17 +14,11 @@
 const https = require("https");
 const { TIMEZONE, BUSINESS_HOURS, HOLIDAYS_API_URL } = require("./config");
 
+// ─── Timezone utilities ───────────────────────────────────────
+
 function toLocaleDateString(date) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    timeZone: TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-    .format(date)
-    .split("/")
-    .reverse()
-    .join("-");
+  // ISO format gives yyyy-mm-dd; timezone offset doesn't matter for date portion
+  return date.toLocaleString("sv", { timeZone: TIMEZONE }).slice(0, 10);
 }
 
 function getLocaleTime(date) {
@@ -39,6 +36,8 @@ function getLocaleTime(date) {
 }
 
 function getLocaleWeekday(date) {
+  // converting via toLocaleString is the simplest reliable way to get the
+  // weekday number adjusted for the target timezone.
   return new Date(
     date.toLocaleString("en-US", { timeZone: TIMEZONE })
   ).getDay();
@@ -47,6 +46,8 @@ function getLocaleWeekday(date) {
 function formatHour(hour) {
   return `${String(hour).padStart(2, "0")}:00`;
 }
+
+// ─── Holiday fetching ─────────────────────────────────────────
 
 /**
  * Fetches Brazilian public holidays from BrasilAPI.
@@ -77,6 +78,8 @@ function fetchHolidays(year) {
   });
 }
 
+// ─── Pure decision functions ──────────────────────────────────
+
 function isWeekend(weekday) {
   return weekday === 0 || weekday === 6;
 }
@@ -106,15 +109,17 @@ function isWithinBusinessHours(timeDecimal, schedule) {
 function buildResult({ open, reason, message, warning = null, holidaysVerified, businessHours }) {
   return {
     open,
-    status:           open ? "ABERTO" : "FECHADO",
+    status: open ? "ABERTO" : "FECHADO",
     reason,
     message,
     warning,
     holidaysVerified,
-    checkedAt: new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+    checkedAt: new Date().toLocaleString("pt-BR", { timeZone: TIMEZONE }),
     businessHours,
   };
 }
+
+// ─── Main exported function ───────────────────────────────────
 
 /**
  * Determines whether the given date/time is within business hours.
@@ -137,6 +142,7 @@ async function checkBusinessHours(date = new Date()) {
   const time        = getLocaleTime(date);
   const timeDecimal = time.hour + time.minute / 60;
 
+  // Step 1 — weekend
   if (isWeekend(weekday)) {
     return buildResult({
       open:             false,
@@ -147,7 +153,9 @@ async function checkBusinessHours(date = new Date()) {
     });
   }
 
-  const { holidays, verified } = await fetchHolidays(year);
+  // Step 2 — public holiday
+  // call via module.exports so tests (and other consumers) can stub/override
+  const { holidays, verified } = await module.exports.fetchHolidays(year);
 
   const warning = verified
     ? null
@@ -163,7 +171,19 @@ async function checkBusinessHours(date = new Date()) {
     });
   }
 
+  // Step 3 — daily schedule
   const schedule = BUSINESS_HOURS[weekday];
+
+  if (schedule === null) {
+    return buildResult({
+      open: false,
+      reason: "outside_hours",
+      message: "Fechado. Sem expediente configurado para este dia.",
+      warning,
+      holidaysVerified: verified,
+      businessHours: null,
+    });
+  }
 
   if (isWithinBusinessHours(timeDecimal, schedule)) {
     return buildResult({
@@ -198,6 +218,7 @@ async function checkBusinessHours(date = new Date()) {
 
 module.exports = {
   checkBusinessHours,
+  fetchHolidays,
   toLocaleDateString,
   getLocaleTime,
   getLocaleWeekday,
