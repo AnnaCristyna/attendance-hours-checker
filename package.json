@@ -1,0 +1,19 @@
+{
+  "name": "business-hours-checker",
+  "version": "1.0.0",
+  "description": "Verifica se o horário atual está dentro do horário de atendimento da UniUn1ca, considerando feriados nacionais via BrasilAPI.",
+  "main": "checkBusinessHours.js",
+  "scripts": {
+    "test": "jest --verbose",
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^30.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
