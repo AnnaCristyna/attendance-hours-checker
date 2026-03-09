@@ -111,7 +111,7 @@ function buildResult({ open, reason, message, warning = null, holidaysVerified, 
     message,
     warning,
     holidaysVerified,
-    checkedAt:        new Date().toISOString(),
+    checkedAt: new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     businessHours,
   };
 }

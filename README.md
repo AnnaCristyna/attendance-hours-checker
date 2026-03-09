@@ -84,7 +84,7 @@ console.log(result.message); // mensagem em português
   "status": "ABERTO",
   "reason": "within_hours",
   "message": "Aberto. Atendimento das 08:00 às 20:00.",
-  "checkedAt": "2025-12-30T13:15:00.000Z",
+  "checkedAt": "30/12/2025, 10:15:00",
   "businessHours": {
     "opens": "08:00",
     "closes": "20:00"
@@ -98,7 +98,7 @@ console.log(result.message); // mensagem em português
 | `status` | `string` | `"ABERTO"` ou `"FECHADO"` |
 | `reason` | `string` | `within_hours` / `outside_hours` / `weekend` / `holiday` |
 | `message` | `string` | Mensagem legível em português |
-| `checkedAt` | `string` | Timestamp ISO 8601 da verificação |
+| `checkedAt` | `string` | Data e hora da verificação no horário de Brasília |
 | `businessHours` | `object\|null` | Horário do dia verificado, ou `null` se fechado por feriado/fim de semana |
 
 ---
